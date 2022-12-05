@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "aoc"
+name = "aoc2022"
 version = "0.1.0"
 dependencies = [
  "range-collections",
