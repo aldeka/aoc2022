@@ -1,4 +1,4 @@
-== My AoC 2022 code ==
+## My AoC 2022 code
 
 I haven't learned yet how to import files in Rust.
 
