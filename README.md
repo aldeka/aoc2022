@@ -6,4 +6,4 @@ So each day when I finish the exercise I copypaste the solution into the appropr
 
 `main.rs` always has the most recent day's code in it.
 
-Quick and dirty, the Advent of Code way! :D 
+Quick and dirty, the Advent of Code way! :D
