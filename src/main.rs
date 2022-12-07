@@ -6,17 +6,15 @@ struct File {
     size: u32,
 }
 
-struct Dir<'a> {
-    parent: &'a Option<&'a Dir<'a>>,
+struct Dir {
     name: String,
     files: Vec<File>,
-    dirs: Vec<Dir<'a>>,
+    dirs: Vec<Dir>,
 }
 
-impl Dir<'_> {
-    fn new<'a>(name: &'a str, parent: &'a Option<&'a Dir>) -> Dir<'a> {
+impl Dir {
+    fn new<'a>(name: &'a str) -> Dir {
         Dir {
-            parent: parent,
             name: name.to_string(),
             files: Vec::new(),
             dirs: Vec::new(),
@@ -32,7 +30,6 @@ impl Dir<'_> {
 
     fn add_dir(&mut self, name: &str) {
         self.dirs.push(Dir {
-            parent: &Some(self),
             name: name.to_string(),
             files: Vec::new(),
             dirs: Vec::new(),
@@ -48,7 +45,7 @@ fn part1() {
     let lines = contents.split("\n");
 
     let mut location_history: Vec<&mut Dir> = Vec::new();
-    let mut root = Dir::new("/", &None);
+    let mut root = Dir::new("/");
     location_history.push(&mut root);
 
     // let command_pattern = Regex::new(r"^\$ _*").unwrap();
@@ -80,7 +77,7 @@ fn part1() {
                             Some(x) => location_history.push(x),
                             None => {
                                 // or do we need to make a new directory for where we're going
-                                current_dir.dirs.push(Dir::new(target, &Some(current_dir)));
+                                current_dir.dirs.push(Dir::new(target));
                                 location_history.push(&mut current_dir.dirs.last().unwrap());
                             }
                         }
