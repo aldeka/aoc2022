@@ -48,10 +48,6 @@ fn part1() {
     let mut root = Dir::new("/");
     location_history.push(&mut root);
 
-    // let command_pattern = Regex::new(r"^\$ _*").unwrap();
-    // let cd_pattern = Regex::new(r"(?m)^\$ cd (\S*)$").unwrap();
-    // let ls_pattern = Regex::new(r"^\$ ls$").unwrap();
-
     for line in lines.into_iter() {
         let mut words = line.split(" ");
         let first_word = words.next().unwrap();
@@ -88,17 +84,9 @@ fn part1() {
             } else {
                 panic!("Unknown command:\n{command}");
             }
-            // if cd_pattern.is_match(line) {
-            //     let blah = cd_pattern.captures_iter(line);
-            //     let dir = &blah.last().unwrap()[0];
-            //     println!("Change directory: {dir}");
-            // } else if ls_pattern.is_match(line) {
-            //     println!("List directory:\n{line}");
-            // } else {
-            //     println!("Unknown command:\n{line}");
-            // }
         } else {
             // we're getting back a listing of whatever the current location is
+            // check items to see if they already exist and if not, add them
         }
     }
 }
