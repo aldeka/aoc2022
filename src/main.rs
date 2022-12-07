@@ -1,165 +1,116 @@
+// use regex::Regex;
 use std::fs;
 
-type BoatStack = Vec<char>;
-
-type Boat = Vec<BoatStack>;
-
-#[derive(Debug)]
-struct Instruction {
-    number_containers: u32,
-    boat_from: usize,
-    boat_to: usize,
+struct File {
+    name: String,
+    size: u32,
 }
 
-fn make_boat(lines: Vec<&str>) -> Boat {
-    let mut boat: Boat = Vec::new();
-    let crate_size = 4;
+struct Dir<'a> {
+    parent: &'a Option<&'a Dir<'a>>,
+    name: String,
+    files: Vec<File>,
+    dirs: Vec<Dir<'a>>,
+}
 
-    // reverse it so we stack things bottom-up
-    let mut boat_lines = lines.to_vec();
-    // pop off the column numbers, we don't need them
-    boat_lines.pop();
-    // reverse it so we stack things bottom-up
-    boat_lines.reverse();
-
-    for line in boat_lines.iter() {
-        // a single layer of the stack
-        let mut index = 0;
-        for char in line.chars() {
-            if char != ' ' && char != '[' && char != ']' && char != '\n' {
-                // we've found the letter contents
-                // divide so we get which boat pile to stack this on
-                let boat_index = (index - 1) / crate_size;
-                if boat.len() == boat_index {
-                    let new_boat_stack: BoatStack = Vec::new();
-                    boat.push(new_boat_stack);
-                }
-                if boat.len() < boat_index {
-                    panic!("stack {boat_index} appears to be missing from the boat!");
-                }
-                boat[boat_index].push(char);
-            }
-            index += 1;
+impl Dir<'_> {
+    fn new<'a>(name: &'a str, parent: &'a Option<&'a Dir>) -> Dir<'a> {
+        Dir {
+            parent: parent,
+            name: name.to_string(),
+            files: Vec::new(),
+            dirs: Vec::new(),
         }
     }
-    boat
-}
 
-fn parse_instruction(line: &str) -> Instruction {
-    let words: Vec<&str> = line.split(" ").collect();
-    let inst = Instruction {
-        number_containers: words[1].to_string().parse::<u32>().unwrap(),
-        boat_from: words[3].to_string().parse::<usize>().unwrap() - 1,
-        boat_to: words[5].to_string().parse::<usize>().unwrap() - 1,
-    };
-    inst
-}
-
-fn move_container(boat: &mut Boat, boat_from: usize, boat_to: usize) {
-    let container = boat[boat_from].pop();
-    match container {
-        Some(char) => boat[boat_to].push(char),
-        None => panic!("Crate from {boat_from} to move to {boat_to} did not exist"),
+    fn add_file(&mut self, name: &str, size: u32) {
+        self.files.push(File {
+            name: name.to_string(),
+            size: size,
+        });
     }
-}
 
-fn use_crane(boat: &mut Boat, instruction: Instruction) {
-    let mut index = 0;
-    while index < instruction.number_containers {
-        move_container(boat, instruction.boat_from, instruction.boat_to);
-        index += 1;
+    fn add_dir(&mut self, name: &str) {
+        self.dirs.push(Dir {
+            parent: &Some(self),
+            name: name.to_string(),
+            files: Vec::new(),
+            dirs: Vec::new(),
+        });
     }
-}
-
-fn use_new_crane(boat: &mut Boat, instruction: Instruction) {
-    let mut moved_stack: Vec<char> = Vec::new();
-    while moved_stack.len() < instruction.number_containers.try_into().unwrap() {
-        // move_container(boat, instruction.boat_from, instruction.boat_to);
-        let container = boat[instruction.boat_from].pop();
-        match container {
-            Some(char) => moved_stack.push(char),
-            None => panic!("Crate to move didn't exist"),
-        }
-    }
-    moved_stack.reverse();
-    boat[instruction.boat_to].append(&mut moved_stack);
-}
-
-fn get_answer(boat: &mut Boat) {
-    let mut answer: String = String::from("");
-    for stack in boat {
-        let letter = stack.pop().unwrap();
-        answer.push(letter);
-    }
-    println!("Answer: {answer}");
 }
 
 fn part1() {
     println!("Part 1");
 
     let contents =
-        fs::read_to_string("src/05/input.txt").expect("Should have been able to read the file");
-
+        fs::read_to_string("src/07/input.txt").expect("Should have been able to read the file");
     let lines = contents.split("\n");
 
-    let mut boat_lines = Vec::new();
-    let mut instruction_lines = Vec::new();
+    let mut location_history: Vec<&mut Dir> = Vec::new();
+    let mut root = Dir::new("/", &None);
+    location_history.push(&mut root);
 
-    let mut has_started_instructions = false;
-    for line in lines {
-        if line == "" {
-            has_started_instructions = true;
-        } else if has_started_instructions {
-            instruction_lines.push(line);
+    // let command_pattern = Regex::new(r"^\$ _*").unwrap();
+    // let cd_pattern = Regex::new(r"(?m)^\$ cd (\S*)$").unwrap();
+    // let ls_pattern = Regex::new(r"^\$ ls$").unwrap();
+
+    for line in lines.into_iter() {
+        let mut words = line.split(" ");
+        let first_word = words.next().unwrap();
+        if first_word == "$" {
+            // it's a command
+            let command = words.next().unwrap();
+            if command == "cd" {
+                let target = words.next().unwrap();
+                println!("Change directory: {:#?}", target);
+                match target {
+                    "/" => {
+                        location_history.clear();
+                        location_history.push(&mut root);
+                    }
+                    ".." => {
+                        location_history.pop();
+                    }
+                    _ => {
+                        let current_dir = location_history.last().unwrap();
+                        // are we going somewhere we've been before?
+                        let new_dir = current_dir.dirs.iter_mut().find(|dir| dir.name == target);
+                        match new_dir {
+                            Some(x) => location_history.push(x),
+                            None => {
+                                // or do we need to make a new directory for where we're going
+                                current_dir.dirs.push(Dir::new(target, &Some(current_dir)));
+                                location_history.push(&mut current_dir.dirs.last().unwrap());
+                            }
+                        }
+                    }
+                }
+            } else if command == "ls" {
+                println!("List directory: {}", location_history.last().unwrap().name);
+            } else {
+                panic!("Unknown command:\n{command}");
+            }
+            // if cd_pattern.is_match(line) {
+            //     let blah = cd_pattern.captures_iter(line);
+            //     let dir = &blah.last().unwrap()[0];
+            //     println!("Change directory: {dir}");
+            // } else if ls_pattern.is_match(line) {
+            //     println!("List directory:\n{line}");
+            // } else {
+            //     println!("Unknown command:\n{line}");
+            // }
         } else {
-            boat_lines.push(line);
+            // we're getting back a listing of whatever the current location is
         }
     }
-    let mut boat = make_boat(boat_lines);
-    //println!("Boat:\n{boat:#?}");
-
-    for line in instruction_lines {
-        let inst = parse_instruction(line);
-        // println!("{inst:#?}");
-        use_crane(&mut boat, inst);
-    }
-
-    //println!("Boat:\n{boat:#?}");
-
-    get_answer(&mut boat);
 }
 
-fn part2() {
-    println!("Part 2");
-
-    let contents =
-        fs::read_to_string("src/05/input.txt").expect("Should have been able to read the file");
-    let lines = contents.split("\n");
-
-    let mut boat_lines = Vec::new();
-    let mut instruction_lines = Vec::new();
-
-    let mut has_started_instructions = false;
-    for line in lines {
-        if line == "" {
-            has_started_instructions = true;
-        } else if has_started_instructions {
-            instruction_lines.push(line);
-        } else {
-            boat_lines.push(line);
-        }
-    }
-    let mut boat = make_boat(boat_lines);
-
-    for line in instruction_lines {
-        let inst = parse_instruction(line);
-        use_new_crane(&mut boat, inst);
-    }
-
-    get_answer(&mut boat);
-}
+// fn part2() {
+//     println!("Part 2");
+// }
 
 fn main() {
     part1();
-    part2();
+    // part2();
 }
