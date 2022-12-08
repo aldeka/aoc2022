@@ -164,11 +164,6 @@ mod tests {
 
     #[test]
     fn test_get_visible_tree_count() {
-        //         let sample_input = "30373
-        // 25512
-        // 65332
-        // 33549
-        // 35390";
         let sample_input = "12345
 12145
 12345";

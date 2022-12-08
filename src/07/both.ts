@@ -71,11 +71,13 @@ function part2(root: DirType) {
 
   while (dirsToTest.length > 0) {
     const dir = dirsToTest.pop();
-    if (dir && dir.sizeMemo) {
-      if (dir.sizeMemo >= neededSpareSize) {
+    if (dir) {
+      // since we already ran on root this should always be memo'ed
+      const size = getDirSize(dir);
+      if (size >= neededSpareSize) {
         // if the smallest dir is blank, or its size is larger than the dir we're testing
         // replace it
-        if (!smallestDirToDelete || (smallestDirToDelete.sizeMemo && smallestDirToDelete.sizeMemo > dir.sizeMemo)) {
+        if (!smallestDirToDelete || (smallestDirToDelete.sizeMemo && smallestDirToDelete.sizeMemo > size)) {
           smallestDirToDelete = dir;
         }
         // only push if this dir is big enough
