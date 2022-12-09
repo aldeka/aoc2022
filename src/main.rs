@@ -15,10 +15,10 @@ fn next_knot_position(head: Position, tail: Position) -> Position {
         next_position.1 += (head.1 - tail.1).signum();
     }
 
-    if horiz_move && next_position.1 != head.1 {
+    if horiz_move && !vert_move && next_position.1 != head.1 {
         // shift vert too, because diagonal move
         next_position.1 += (head.1 - tail.1).signum();
-    } else if vert_move && next_position.0 != head.0 {
+    } else if vert_move && !horiz_move && next_position.0 != head.0 {
         // shift horiz too, because diagonal move
         next_position.0 += (head.0 - tail.0).signum();
     }
@@ -136,10 +136,16 @@ mod tests {
         let head: Position = (4, 1);
         let tail: Position = (3, 0);
         assert_eq!(next_knot_position(head, tail), (3, 0));
+
         // another diagonal
         let head: Position = (4, 2);
         let tail: Position = (3, 0);
         assert_eq!(next_knot_position(head, tail), (4, 1));
+
+        // another diagonal
+        let head: Position = (2, -3);
+        let tail: Position = (0, -1);
+        assert_eq!(next_knot_position(head, tail), (1, -2));
     }
 
     #[test]
