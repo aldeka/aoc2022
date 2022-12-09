@@ -44,7 +44,7 @@ fn simulate_rope(contents: &str, knot_count: u32) -> usize {
         if parts.len() == 2 {
             let direction = parts[0];
             let mut count = parts[1].parse::<i32>().unwrap();
-            // println!("Move: {} {}", direction, count);
+            println!("Move: {} {}", direction, count);
 
             while count > 0 {
                 // move the head of the rope
@@ -63,11 +63,18 @@ fn simulate_rope(contents: &str, knot_count: u32) -> usize {
                 }
                 // and record the tail position
                 visited_positions.insert(knots[knots.len() - 1].clone());
+                // println!(
+                //     "Knots: {:#?}",
+                //     knots
+                //         .iter()
+                //         .map(|k| format!("{:?}", k))
+                //         .collect::<Vec<_>>()
+                //         .join(" ")
+                // );
                 count -= 1;
             }
         }
     }
-    // println!("{:#?}", visited_positions);
     visited_positions.len()
 }
 
@@ -98,49 +105,41 @@ mod tests {
         // up
         let head: Position = (0, 2);
         let tail: Position = (0, 0);
-        let mut next: Position = next_knot_position(head, tail);
-        assert_eq!(next, (0, 1));
+        assert_eq!(next_knot_position(head, tail), (0, 1));
 
         // down
         let head: Position = (0, -3);
         let tail: Position = (0, -1);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (0, -2));
+        assert_eq!(next_knot_position(head, tail), (0, -2));
 
         // right
         let head: Position = (0, 0);
         let tail: Position = (-3, 0);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (-2, 0));
+        assert_eq!(next_knot_position(head, tail), (-2, 0));
 
         // left
         let head: Position = (3, 0);
         let tail: Position = (5, 0);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (4, 0));
+        assert_eq!(next_knot_position(head, tail), (4, 0));
 
         // diagonal
         let head: Position = (2, -1);
         let tail: Position = (0, 0);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (1, -1));
+        assert_eq!(next_knot_position(head, tail), (1, -1));
 
         // another diagonal
         let head: Position = (2, 3);
         let tail: Position = (1, 1);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (2, 2));
+        assert_eq!(next_knot_position(head, tail), (2, 2));
 
         // another diagonal
         let head: Position = (4, 1);
         let tail: Position = (3, 0);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (3, 0));
+        assert_eq!(next_knot_position(head, tail), (3, 0));
         // another diagonal
         let head: Position = (4, 2);
         let tail: Position = (3, 0);
-        next = next_knot_position(head, tail);
-        assert_eq!(next, (4, 1));
+        assert_eq!(next_knot_position(head, tail), (4, 1));
     }
 
     #[test]
@@ -153,8 +152,7 @@ R 4
 D 1
 L 5
 R 2";
-        let visited_positions = simulate_rope(input, 2);
-        assert_eq!(visited_positions, 13);
+        assert_eq!(simulate_rope(input, 2), 13);
     }
 
     #[test]
@@ -167,8 +165,7 @@ R 4
 D 1
 L 5
 R 2";
-        let visited_positions = simulate_rope(input, 10);
-        assert_eq!(visited_positions, 1);
+        assert_eq!(simulate_rope(input, 10), 1);
     }
 
     #[test]
@@ -181,19 +178,6 @@ R 17
 D 10
 L 25
 U 20";
-        let visited_positions = simulate_rope(input, 10);
-        assert_eq!(visited_positions, 36);
-    }
-
-    #[test]
-    fn test_hashset() {
-        let mut hs = HashSet::<Position>::new();
-        let blah: Position = (0, 1);
-        hs.insert(blah.clone());
-        hs.insert(blah.clone());
-        hs.insert((1, 3));
-        hs.insert((0, 1));
-        hs.insert((3, 1));
-        assert_eq!(hs.len(), 3);
+        assert_eq!(simulate_rope(input, 10), 36);
     }
 }
