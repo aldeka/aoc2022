@@ -1,197 +1,122 @@
-use std::{collections::VecDeque, fs};
+use grid::Grid;
+use std::fs;
 
-struct Monkey {
-    name: usize,
-    items: VecDeque<usize>,
-    on_inspect: Box<dyn Fn(usize) -> usize>,
-    test_divisor: usize,
-    throw_to_true: usize,
-    throw_to_false: usize,
-    inspect_count: usize,
-    lcm: Option<usize>,
+type Map = Grid<char>;
+
+fn parse_map(contents: &str) -> Grid<char> {
+    let row_data: Vec<Vec<char>> = contents
+        .trim()
+        .split("\n")
+        .map(|s| return s.chars().collect())
+        .collect();
+    let cols = row_data[0].len();
+    let map: Map = Grid::from_vec(row_data.concat(), cols);
+    map
 }
 
-impl Monkey {
-    fn new(
-        name: usize,
-        items: VecDeque<usize>,
-        on_inspect: Box<dyn Fn(usize) -> usize>,
-        test_divisor: usize,
-        throw_to_true: usize,
-        throw_to_false: usize,
-        lcm: Option<usize>,
-    ) -> Monkey {
-        Monkey {
-            name,
-            items,
-            on_inspect,
-            test_divisor,
-            throw_to_true,
-            throw_to_false,
-            inspect_count: 0,
-            lcm,
+type Point = (usize, usize);
+
+struct MapPoints {
+    start: Point,
+    end: Point,
+}
+
+fn find_start_and_end(map: Map) -> MapPoints {
+    let mut start: Option<Point> = None;
+    let mut end: Option<Point> = None;
+    let mut iter = map.iter();
+    let mut i = 0;
+    while (start == None || end == None) {
+        let next = iter.next();
+        match next {
+            Some(c) => match c.to_string().as_str() {
+                "S" => start = Some((i / map.cols(), i % map.rows())),
+                "E" => end = Some((i / map.cols(), i % map.rows())),
+                _ => continue,
+            },
+            None => panic!("No map element found here at index {i}"),
         }
+        i += 1;
     }
+    return MapPoints {
+        start: start.unwrap(),
+        end: end.unwrap(),
+    };
+}
 
-    fn set_lcm(&mut self, lcm: usize) {
-        self.lcm = Some(lcm);
+fn get_char(s: &str) -> char {
+    s.chars().collect::<Vec<char>>()[0]
+}
+
+fn next_step_candidates(current: Point) -> [Point; 4] {
+    [
+        (current.0 - 1, current.1),
+        (current.0 + 1, current.1),
+        (current.0, current.1 - 1),
+        (current.0, current.1 + 1),
+    ]
+}
+
+fn get_path_length(map: &Map) -> i32 {
+    return map
+        .iter()
+        .filter(|c| c != &&get_char("."))
+        .collect::<Vec<&char>>()
+        .len()
+        .try_into()
+        .unwrap();
+}
+
+fn can_step(a: char, b: char) {
+    let mut adjusted_a = a;
+    let mut adjusted_b = b;
+    if a == get_char("S") {
+        a = get_char("a");
     }
-
-    fn inspect(&mut self) {
-        self.inspect_count += self.items.len();
-        Some(self.lcm).expect("LCM not found!");
-        self.items = self
-            .items
-            .iter()
-            .map(|item| (self.on_inspect)(*item) % self.lcm.unwrap())
-            .collect();
-    }
-
-    fn throw(&mut self) -> usize {
-        self.items.pop_front().unwrap()
-    }
-
-    fn get_destination_monkey(&self, item: usize) -> usize {
-        if item % self.test_divisor == 0 {
-            return self.throw_to_true;
-        }
-        self.throw_to_false
-    }
-
-    fn catch(&mut self, item: usize) {
-        self.items.push_back(item);
+    if b == get_char("E") {
+        b = get_char("z");
     }
 }
 
-// Monkey 0:
-//   Starting items: 98, 97, 98, 55, 56, 72
-//   Operation: new = old * 13
-//   Test: divisible by 11
-//     If true: throw to monkey 4
-//     If false: throw to monkey 7
-
-fn make_operation(operation_line: &str) -> Box<dyn Fn(usize) -> usize> {
-    if operation_line.find("+") != None {
-        // addition, which always has a static side to it
-        let static_val = operation_line
-            .split(" ")
-            .find(|operand| match operand.parse::<usize>() {
-                Ok(_) => return true,
-                Err(_) => return false,
-            })
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
-        return Box::new(move |b: usize| -> usize { static_val + b });
+fn pathfinder(map: &mut Map, current: Point, current_shortest: &mut i32) -> Option<Vec<Map>> {
+    let current_value = *map.get(current.0, current.1).unwrap();
+    map[current.0][current.1] = get_char(".");
+    let mut subpaths = Vec::new();
+    let path_length: i32 = get_path_length(map);
+    if path_length >= *current_shortest {
+        // this path will not win, nope out
+        return None;
+    }
+    if map.get(current.0, current.1).unwrap() == &get_char("E") {
+        // hooray, we found a solution!
+        subpaths.push(map.clone());
+        current_shortest = *path_length;
     } else {
-        // it's a multiplication one
-        let static_val_str =
-            operation_line
-                .split(" ")
-                .find(|operand| match operand.parse::<usize>() {
-                    Ok(_) => return true,
-                    Err(_) => return false,
-                });
-        if static_val_str != None {
-            let static_val = static_val_str.unwrap().parse::<usize>().unwrap();
-            return Box::new(move |b: usize| -> usize { b * static_val });
-        } else {
-            return Box::new(move |b: usize| -> usize { b * b });
-        }
-    }
-}
-
-fn parse_monkeys(contents: &str) -> Vec<Monkey> {
-    let mut monkeys: Vec<Monkey> = Vec::new();
-    let mut primes: Vec<usize> = Vec::new();
-    for monkey_spec in contents.split("\n\n") {
-        let lines: Vec<&str> = monkey_spec
-            .split("\n")
-            .filter(|line| line != &"")
-            .collect::<Vec<&str>>();
-        let name: usize = lines[0]
-            .trim()
-            .split(" ")
-            .filter(|line| {
-                return line != &"" && line != &"Monkey";
-            })
-            .map(|line| line.replace(":", ""))
-            .collect::<Vec<String>>()[0]
-            .parse::<usize>()
-            .unwrap();
-        let starting_items: VecDeque<usize> = lines[1]
-            .trim()
-            .split("Starting items: ")
-            .collect::<VecDeque<&str>>()[1]
-            .split(", ")
-            .map(|item| item.parse::<usize>().unwrap())
-            .collect();
-        println!("Monkey {name}: {starting_items:#?}");
-        println!("***");
-
-        let operation = make_operation(lines[2].replace("Operation: ", "").as_str());
-        let test_divisor: usize = lines[3]["  Test: divisible by ".len()..]
-            .parse::<usize>()
-            .unwrap();
-        primes.push(test_divisor);
-        let throw_to_true: usize = lines[4]["    If true: throw to monkey ".len()..]
-            .parse::<usize>()
-            .unwrap();
-        let throw_to_false: usize = lines[5]["    If false: throw to monkey ".len()..]
-            .parse::<usize>()
-            .unwrap();
-
-        let lcm = None::<usize>;
-        let monkey = Monkey::new(
-            name,
-            starting_items,
-            operation,
-            test_divisor,
-            throw_to_true,
-            throw_to_false,
-            lcm,
-        );
-        monkeys.push(monkey);
-    }
-    let lcm = primes.iter().product();
-    for i in 0..monkeys.len() {
-        monkeys[i].set_lcm(lcm);
-    }
-    monkeys
-}
-
-fn part2(contents: &str) {
-    println!("Part 2");
-    let mut monkeys = parse_monkeys(contents);
-    for round in 1..10001 {
-        println!("\nRound {}:", round);
-        for i in 0..monkeys.len() {
-            monkeys[i].inspect();
-            while monkeys[i].items.len() > 0 {
-                let thrown_item = monkeys[i].throw();
-                let dest = monkeys[i].get_destination_monkey(thrown_item);
-                monkeys[dest].catch(thrown_item);
+        let next_steps = next_step_candidates(current);
+        for step in next_steps {
+            match map.get(step.0, step.1) {
+                // is it a step small enough we can take it?
+                Some(contents) => match contents.to_string().as_str() {
+                    "." => continue,
+                },
+                None => continue,
             }
         }
-        for i in 0..monkeys.len() {
-            println!("Monkey {}: {:#?}", monkeys[i].name, monkeys[i].items);
-        }
+        return None;
     }
-    let mut inspect_counts = monkeys
-        .iter()
-        .map(|monk| monk.inspect_count)
-        .collect::<Vec<usize>>();
-    inspect_counts.sort();
-    println!(
-        "Answer: {}",
-        inspect_counts.pop().unwrap() * inspect_counts.pop().unwrap()
-    );
+    Some(subpaths)
+}
+
+fn part1(contents: &str) {
+    println!("Part 1");
+    let map = parse_map(contents);
+    let start_and_end = find_start_and_end(map);
 }
 
 fn main() {
     let contents =
-        fs::read_to_string("src/11/input.txt").expect("Should have been able to read the file");
-    part2(&contents);
+        fs::read_to_string("src/12/input.txt").expect("Should have been able to read the file");
+    part1(&contents);
 }
 
 #[cfg(test)]
