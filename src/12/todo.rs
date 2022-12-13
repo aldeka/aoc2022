@@ -76,7 +76,7 @@ fn can_step(a: char, b: char) {
     if b == get_char("E") {
         adjusted_b = get_char("z").to_digit(10).unwrap();;
     }
-    max(adjusted_a.to_digit(10), adjusted
+    max(adjusted_a, adjusted_b) - min(adjusted_a, adjusted_b) 
 }
 
 fn pathfinder(map: &mut Map, current: Point, current_shortest: &mut i32) -> Option<Vec<Map>> {
