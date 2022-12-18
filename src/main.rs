@@ -1,125 +1,165 @@
-use std::{collections::HashMap, fs};
+use std::fs;
 
-#[derive(Debug, PartialEq, Clone)]
-struct Valve {
-    name: String,
-    connection_names: Vec<String>,
-    flow: usize,
-    is_open: bool,
+enum Dim {
+    X,
+    Y,
+    Z,
 }
 
-fn parse_line(line: &str) -> Valve {
-    let name = String::from(&line.to_string()[6..8]);
-    let flow_string = String::from(line.to_string().split(";").nth(0).unwrap());
-    let flow = flow_string[23..].parse::<usize>().unwrap();
-    let connection_names: Vec<String> = line.to_string()[49..]
-        .split(", ")
-        .map(|n| n.to_string())
-        .collect::<Vec<String>>();
+#[derive(Debug, Copy, Clone)]
+struct Cube {
+    x: i32,
+    y: i32,
+    z: i32,
+    faces: [bool; 6],
+}
 
-    println!("Valve: {}, {}, {:#?}", name, flow, connection_names);
-    Valve {
-        name,
-        flow,
-        connection_names,
-        is_open: false,
+fn get_opposite_face(s: usize) -> usize {
+    match s {
+        0 => 5,
+        1 => 4,
+        2 => 3,
+        3 => 2,
+        4 => 1,
+        5 => 0,
+        _ => panic!("Invalid face {}", s),
     }
 }
 
-fn make_valve_map(input: &str) -> HashMap<String, Valve> {
-    let mut tunnels: HashMap<String, Valve> = HashMap::new();
-
-    for line in input.trim().split("\n") {
-        let tunnel = parse_line(line.trim());
-        tunnels.insert(tunnel.name.clone(), tunnel);
+fn parse_line(line: &str) -> Cube {
+    let coords = line
+        .trim()
+        .split(",")
+        .map(|x| x.parse::<i32>().unwrap())
+        .collect::<Vec<i32>>();
+    assert!(coords.len() == 3);
+    Cube {
+        x: coords[0],
+        y: coords[1],
+        z: coords[2],
+        faces: [true, true, true, true, true, true],
     }
-    tunnels
 }
 
-fn calculate_current_flow(map: &HashMap<String, Valve>) -> usize {
-    let mut flow: usize = 0;
-    for (_, v) in map.iter() {
-        if v.is_open {
-            flow += v.flow;
+fn get_adjacent_air_cube(cubes: &mut Vec<Cube>, cube_index: usize, face: usize) -> Option<&Cube> {
+    let testing_cube = cubes.get(cube_index).unwrap();
+    let mut side_dim = Dim::X;
+    let mut side_vec: i32 = 1; // either 1 or -1
+    match face {
+        0 => {}
+        1 => side_dim = Dim::Y,
+        2 => side_dim = Dim::Z,
+        3 => {
+            side_dim = Dim::Z;
+            side_vec = -1;
         }
-    }
-    flow
-}
-
-fn is_all_open(map: &HashMap<String, Valve>) -> bool {
-    for (_, v) in map.iter() {
-        if !v.is_open {
-            return false;
+        4 => {
+            side_dim = Dim::Y;
+            side_vec = -1;
         }
-    }
-    true
-}
-
-const MAX_STEP_COUNT: usize = 30;
-
-fn pathfinder(
-    map: &mut HashMap<String, Valve>,
-    path: &mut Vec<String>,
-    step: usize,
-    acc_flow: usize,
-    max_acc_flow: usize,
-) -> usize {
-    if is_all_open(map) || step == MAX_STEP_COUNT {
-        // no movement matters anymore, let's just add up the remaining flow
-        return max_acc_flow + (MAX_STEP_COUNT - calculate_current_flow(map));
-    }
-    if step > MAX_STEP_COUNT {
-        panic!("Path got too long!, {:#?}", path);
+        5 => side_vec = -1,
+        _ => panic!("Invalid face {}", face),
     }
 
-    match map.get_mut(&path[path.len() - 1]) {
-        Some(v) => {
-            // calculate this step's flow
-            let new_acc_flow = calculate_current_flow(map) + acc_flow;
-            let new_max_acc_flow = usize::max(max_acc_flow, new_acc_flow);
+    let hypothetical_air_cube: Cube = match side_dim {
+        Dim::X => Cube { x: testing_cube.x + side_vec, y: testing_cube.y, z: testing_cube.z, faces: [true, true, true, true, true, true]},
+        Dim::Y => Cube { x: testing_cube.x, y: testing_cube.y + side_vec, z: testing_cube.z, faces: [true, true, true, true, true, true]},
+        Dim::Z => Cube { x: testing_cube.x, y: testing_cube.y, z: testing_cube.z + side_vec, faces: [true, true, true, true, true, true]},
+    };
 
-            if !v.is_open {
-                v.is_open = true;
-                // open it if it's not already
-                return pathfinder(map, path, step + 1, new_acc_flow, new_max_acc_flow);
-            } else {
-                // this isn't a "open valve" step
-                return v
-                    .connection_names
-                    .iter()
-                    .map(|c| {
-                        // run it again on each possible next step
-                        let mut new_path: Vec<String> = path.clone();
-                        new_path.push(c.to_string());
-                        return pathfinder(
-                            map,
-                            &mut new_path,
-                            step + 1,
-                            new_acc_flow,
-                            new_max_acc_flow,
-                        );
-                    })
-                    .max()
-                    .unwrap();
-            }
+    let adjacent_cube_index = cubes.iter().position(|c| hypothetical_air_cube.x == c.x && hypothetical_air_cube.y == c.y && hypothetical_air_cube.z == c.z );
+
+    match adjacent_cube_index {
+        Some(i) => {
+            cubes[i].faces[get_opposite_face(face)] = false;
+            cubes[cube_index].faces[face] = false;
+            //return Some(&cubes[i]);
+            return None
         }
-        None => return max_acc_flow,
+        _ => {
+            return Some(&hypothetical_air_cube);
     }
 }
 
-fn part1(contents: &str) -> usize {
+fn score_cube(cube: &Cube) -> usize {
+    cube.faces
+        .iter()
+        .filter(|f| **f)
+        .collect::<Vec<&bool>>()
+        .len()
+}
+
+fn get_surface_area(cubes: &Vec<Cube>) -> usize {
+    let mut count = 0;
+    for cube in cubes.iter() {
+        count += score_cube(cube);
+    }
+    count
+}
+
+fn part1(contents: &str) {
     println!("Part 1");
 
-    let mut valve_map = make_valve_map(contents);
+    let mut cubes: Vec<Cube> = Vec::new();
 
-    let max_flow = pathfinder(&mut valve_map, &mut vec!["AA".to_string()], 1, 0, 0);
-    println!("Max flow: {}", max_flow);
-    max_flow
+    for line in contents.trim().split("\n") {
+        cubes.push(parse_line(line));
+    }
+
+    let mut i = 0;
+    while i < cubes.len() {
+        let mut j = 0;
+        // check each face
+        while j < 6 {
+            // if it's (so far) uncovered
+            if cubes[i].faces[j] {
+                get_adjacent_air_cube(&mut cubes, i, j);
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+
+    let answer = get_surface_area(&cubes);
+
+    println!("Answer: {}", answer);
 }
+
+// fn part2(contents: &str) {
+//     println!("Part 2");
+
+//     let mut cubes: Vec<Cube> = Vec::new();
+
+//     for line in contents.trim().split("\n") {
+//         cubes.push(parse_line(line));
+//     }
+
+//     let mut air_cubes: Vec<Cube> = Vec::new();
+
+//     let mut i = 0;
+//     while i < cubes.len() {
+//         let mut j = 0;
+//         // check each face
+//         while j < 6 {
+//             // if it's (so far) uncovered
+//             if cubes[i].faces[j] {
+//                 match get_adjacent_air_cube(&mut cubes, i, j) {
+//                     Some(a) => air_cubes.push(*a),
+//                     None => {}
+//                 }
+//             }
+//             j += 1;
+//         }
+//         i += 1;
+//     }
+
+//     // now we gotta check our air cubes to see if they're surrounded
+
+// }
 
 fn main() {
     let contents =
-        fs::read_to_string("src/16/input.txt").expect("Should have been able to read the file");
+        fs::read_to_string("src/18/input.txt").expect("Should have been able to read the file");
     part1(&contents);
 }
 
@@ -128,52 +168,19 @@ mod tests {
     use crate::*;
 
     #[test]
-    fn test_parse_line() {
-        let line = "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB";
-        assert_eq!(
-            parse_line(line),
-            Valve {
-                name: String::from("AA"),
-                connection_names: vec![String::from("DD"), String::from("II"), String::from("BB")],
-                flow: 0,
-                is_open: false,
-            }
-        )
+    fn test_part_1() {
+        assert_eq!(2 + 2, 4)
     }
 
-    #[test]
-    fn test_valve_map() {
-        let test_input = "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-Valve BB has flow rate=13; tunnels lead to valves CC, AA
-Valve CC has flow rate=2; tunnels lead to valves DD, BB
-Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-Valve EE has flow rate=3; tunnels lead to valves FF, DD
-Valve FF has flow rate=0; tunnels lead to valves EE, GG
-Valve GG has flow rate=0; tunnels lead to valves FF, HH
-Valve HH has flow rate=22; tunnel leads to valve GG
-Valve II has flow rate=0; tunnels lead to valves AA, JJ
-Valve JJ has flow rate=21; tunnel leads to valve II";
-        let map = make_valve_map(test_input);
-        assert_eq!(map.len(), 10);
-        assert_eq!(
-            map.get("EE").unwrap(),
-            &parse_line("Valve EE has flow rate=3; tunnels lead to valves FF, DD")
-        );
-    }
-
-    #[test]
-    fn test_part1() {
-        let test_input = "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-Valve BB has flow rate=13; tunnels lead to valves CC, AA
-Valve CC has flow rate=2; tunnels lead to valves DD, BB
-Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-Valve EE has flow rate=3; tunnels lead to valves FF, DD
-Valve FF has flow rate=0; tunnels lead to valves EE, GG
-Valve GG has flow rate=0; tunnels lead to valves FF, HH
-Valve HH has flow rate=22; tunnel leads to valve GG
-Valve II has flow rate=0; tunnels lead to valves AA, JJ
-Valve JJ has flow rate=21; tunnel leads to valve II";
-
-        assert_eq!(part1(test_input), 1651);
-    }
+    // #[test]
+    // fn test_get_adjacent_cube() {
+    //     let mut cubes = vec![parse_line("1,1,1"), parse_line("2,1,1")];
+    //     let adj = get_adjacent_cube(&mut cubes, 0, 0);
+    //     assert_eq!(adj.unwrap().x, 2);
+    //     assert_eq!(adj.unwrap().faces, [true, true, true, true, true, false]);
+    //     assert_eq!(
+    //         cubes.get(0).unwrap().faces,
+    //         [false, true, true, true, true, true]
+    //     );
+    // }
 }
